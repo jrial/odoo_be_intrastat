@@ -29,7 +29,7 @@ Generates Intrastat XML report for declaration
     'author': 'OpenERP SA',
     'depends': ['report_intrastat'],
     'data': [
-        'data/report.intrastat.code.csv',
+        'data/report.intrastat.code.xml',
     ],
     'demo': [],
     'test': [],
