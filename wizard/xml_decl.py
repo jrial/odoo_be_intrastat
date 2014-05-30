@@ -168,6 +168,50 @@ class xml_decl(osv.osv_memory):
         datas.set('form', 'EXF29S')
         datas.set('close', 'true')
         numlgn = 0
+        sqlreq = """
+            select
+                to_char(inv.create_date, 'YYYY') as name,
+                to_char(inv.create_date, 'MM') as month,
+                min(inv_line.id) as id,
+                intrastat.id as intrastat_id,
+                upper(inv_country.code) as code,
+                sum(case when inv_line.price_unit is not null
+                        then inv_line.price_unit * inv_line.quantity
+                        else 0
+                    end) as value,
+                sum(
+                    case when uom.category_id != puom.category_id then (pt.weight_net * inv_line.quantity)
+                    else (pt.weight_net * inv_line.quantity * uom.factor) end
+                ) as weight,
+                sum(
+                    case when uom.category_id != puom.category_id then inv_line.quantity
+                    else (inv_line.quantity * uom.factor) end
+                ) as supply_units,
+
+                inv.currency_id as currency_id,
+                inv.number as ref,
+                case when inv.type in ('out_invoice','in_refund')
+                    then 'export'
+                    else 'import'
+                    end as type
+            from
+                account_invoice inv
+                left join account_invoice_line inv_line on inv_line.invoice_id=inv.id
+                left join (product_template pt
+                    left join product_product pp on (pp.product_tmpl_id = pt.id))
+                on (inv_line.product_id = pp.id)
+                left join product_uom uom on uom.id=inv_line.uos_id
+                left join product_uom puom on puom.id = pt.uom_id
+                left join report_intrastat_code intrastat on pt.intrastat_id = intrastat.id
+                left join (res_partner inv_address
+                    left join res_country inv_country on (inv_country.id = inv_address.country_id))
+                on (inv_address.id = inv.partner_id)
+            where
+                inv.state in ('open','paid')
+                and inv_line.product_id is not null
+                and inv_country.intrastat=true
+            group by to_char(inv.create_date, 'YYYY'), to_char(inv.create_date, 'MM'),intrastat.id,inv.type,pt.intrastat_id, inv_country.code,inv.number,  inv.currency_id
+            """
 
         if numlgn == 0:
             #no datas
