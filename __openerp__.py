@@ -2,7 +2,7 @@
 ##############################################################################
 #
 #    OpenERP, Open Source Management Solution
-#    Copyright (C) 2004-TODAY OpenERP S.A. <http://www.openerp.com>
+#    Copyright (C) 2004-TODAY OpenERP S.A. <http://www.odoo.com>
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as
@@ -30,6 +30,7 @@ Generates Intrastat XML report for declaration
     'depends': ['report_intrastat'],
     'data': [
         'data/report.intrastat.code.xml',
+        'wizard/l10n_be_intrastat_declaration_xml_view.xml',
     ],
     'demo': [],
     'test': [],
@@ -38,4 +39,4 @@ Generates Intrastat XML report for declaration
     'images': [],
     'css': [],
 }
-# vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:
+
