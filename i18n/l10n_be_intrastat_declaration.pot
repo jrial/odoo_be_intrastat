@@ -32865,3 +32865,17 @@ msgstr ""
 msgid "Media, recorded, for reproducing sound or image, incl. matrices and masters for the production of discs (excl. for reproducing representations of instructions, data, sound, and image recorded in a machine-readable binary form, and capable of being manipulated or providing interactivity to a user, by means of an automatic data-processing machine, magnetic, optical and semiconductor media, and products of chapter 37)"
 msgstr ""
 
+#. module: l10n_be_intrastat_declaration
+#: model:l10n_be_intrastat_declaration.regions,name:0
+msgid "Flemish region"
+msgstr ""
+
+#. module: l10n_be_intrastat_declaration
+#: model:l10n_be_intrastat_declaration.regions,name:0
+msgid "Walloon region"
+msgstr ""
+
+#. module: l10n_be_intrastat_declaration
+#: model:l10n_be_intrastat_declaration.regions,name:0
+msgid "Brussels region"
+msgstr ""

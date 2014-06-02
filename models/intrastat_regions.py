@@ -24,7 +24,7 @@ class intrastat_regions(osv.osv):
     _name = 'l10n_be_intrastat_declaration.regions'
     _columns = {
         'code': fields.char('Code', required=True),
-        'name': fields.char('Name'),
+        'name': fields.char('Name', translate=True),
         'description': fields.char('Description'),
     }
 

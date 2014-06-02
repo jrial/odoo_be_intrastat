@@ -108,13 +108,13 @@ class xml_decl(osv.osv_memory):
         ET.SubElement(admin, 'To').text = "NBB"
         ET.SubElement(admin, 'Domain').text = "SXX"
         if decl_datas.arrivals == 1:
-            decl.append(self._get_arrivals_simple(cr, uid, ids, decl_datas, context))
+            decl.append(self._get_arrivals_simple(cr, uid, ids, decl_datas, obj_company, context))
         elif decl_datas.arrivals == 2:
-            decl.append(self._get_arrivals_extended(cr, uid, ids, decl_datas, context))
+            decl.append(self._get_arrivals_extended(cr, uid, ids, decl_datas, obj_company, context))
         if decl_datas.dispatches == 1:
-            decl.append(self._get_dispatch_simple(cr, uid, ids, decl_datas, context))
+            decl.append(self._get_dispatch_simple(cr, uid, ids, decl_datas, obj_company, context))
         elif decl_datas.dispatches == 2:
-            decl.append(self._get_dispatch_extended(cr, uid, ids, decl_datas, context))
+            decl.append(self._get_dispatch_extended(cr, uid, ids, decl_datas, obj_company, context))
 
         #Get xml string with declaration
         data_file = ET.tostring(decl, encoding='UTF-8', method='xml')
@@ -135,7 +135,9 @@ class xml_decl(osv.osv_memory):
             'target': 'new',
         }
 
-    def _get_arrivals_simple(self, cr, uid, ids, decl_datas, context=None):
+    def _get_arrivals_simple(self, cr, uid, ids, decl_datas, obj_company, context=None):
+        curr_mod = self.pool.get('res.currency')
+
         decl = ET.Element('Report')
         decl.set('code','EX19S')
         datas = ET.SubElement(decl, 'Data')
@@ -148,7 +150,9 @@ class xml_decl(osv.osv_memory):
             datas.set('action', 'nihil')
         return decl
 
-    def _get_arrivals_extended(self, cr, uid, ids, decl_datas, context=None):
+    def _get_arrivals_extended(self, cr, uid, ids, decl_datas, obj_company, context=None):
+        curr_mod = self.pool.get('res.currency')
+
         decl = ET.Element('Report')
         decl.set('code','EX19E')
         datas = ET.SubElement(decl, 'Data')
@@ -161,7 +165,9 @@ class xml_decl(osv.osv_memory):
             datas.set('action', 'nihil')
         return decl
 
-    def _get_dispatch_simple(self, cr, uid, ids, decl_datas, context=None):
+    def _get_dispatch_simple(self, cr, uid, ids, decl_datas, obj_company, context=None):
+        curr_mod = self.pool.get('res.currency')
+
         decl = ET.Element('Report')
         decl.set('code','EX29S')
         datas = ET.SubElement(decl, 'Data')
@@ -170,10 +176,7 @@ class xml_decl(osv.osv_memory):
         numlgn = 0
         sqlreq = """
             select
-                to_char(inv.create_date, 'YYYY') as name,
-                to_char(inv.create_date, 'MM') as month,
-                min(inv_line.id) as id,
-                intrastat.id as intrastat_id,
+                intrastat.name,
                 upper(inv_country.code) as code,
                 sum(case when inv_line.price_unit is not null
                         then inv_line.price_unit * inv_line.quantity
@@ -187,13 +190,14 @@ class xml_decl(osv.osv_memory):
                     case when uom.category_id != puom.category_id then inv_line.quantity
                     else (inv_line.quantity * uom.factor) end
                 ) as supply_units,
-
+                idtr.code,
                 inv.currency_id as currency_id,
-                inv.number as ref,
-                case when inv.type in ('out_invoice','in_refund')
-                    then 'export'
-                    else 'import'
-                    end as type
+                case when swh.region_id is not null
+                        then swh.region_id
+                        else res_company.region_id
+                    end as region,
+                res_currency.name,
+                inv.type as type
             from
                 account_invoice inv
                 left join account_invoice_line inv_line on inv_line.invoice_id=inv.id
@@ -206,19 +210,72 @@ class xml_decl(osv.osv_memory):
                 left join (res_partner inv_address
                     left join res_country inv_country on (inv_country.id = inv_address.country_id))
                 on (inv_address.id = inv.partner_id)
+                left join l10n_be_intrastat_declaration_transaction idtr
+                    on inv.intrastat_transaction_id = idtr.id
+                left join res_company on inv.company_id = res_company.id
+                left join sale_order on inv.origin = sale_order.name
+                left join stock_warehouse swh on sale_order.warehouse_id=swh.id
+                left join res_currency on inv.currency_id=res_currency.id
             where
                 inv.state in ('open','paid')
                 and inv_line.product_id is not null
                 and inv_country.intrastat=true
-            group by to_char(inv.create_date, 'YYYY'), to_char(inv.create_date, 'MM'),intrastat.id,inv.type,pt.intrastat_id, inv_country.code,inv.number,  inv.currency_id
-            """
+                and inv.type in ('out_invoice','in_refund')
+                and to_char(inv.create_date, 'YYYY')='%s'
+                and to_char(inv.create_date, 'MM')='%s'
+                and inv.company_id=%s
+            group by intrastat.name,inv.type,pt.intrastat_id, inv_country.code, inv.currency_id, idtr.code, swh.region_id, res_company.region_id, res_currency.name
+            """ % (decl_datas.year, decl_datas.month, obj_company.id)
 
+        cr.execute(sqlreq)
+        lines = cr.fetchall()
+        for line in lines:
+            numlgn += 1
+            item = ET.SubElement(datas, 'Item')
+            self._set_Dim(item, 'EXSEQCODE', unicode(numlgn))
+            self._set_Dim(item, 'EXTRF', u'29')
+            self._set_Dim(item, 'EXCNT', line[1])
+            if line[5]:
+                self._set_Dim(item, 'EXTTA', unicode(line[5]))
+            else:
+                self._set_Dim(item, 'EXTTA', u'1')
+            if line[7]:
+                self._set_Dim(item, 'EXREG', unicode(line[7]))
+            else:
+                raise osv.except_osv(_('Incorrect Data!'), _('Define at least region of company'))
+            if line[0]:
+                self._set_Dim(item, 'EXTGO', line[0])
+            else:
+                raise osv.except_osv(_('Incorrect Data!'), _('intrastat code not defined'))
+            if line[3]:
+                self._set_Dim(item, 'EXWEIGHT', unicode(line[3]))
+            else:
+                self._set_Dim(item, 'EXWEIGHT', u'0')
+            if line[4]:
+                self._set_Dim(item, 'EXUNITS', unicode(line[4]))
+            else:
+                self._set_Dim(item, 'EXUNITS', u'0')
+            if line[2]:
+                #Check currency
+                if line[8] == "EUR":
+                    self._set_Dim(item, 'EXTXVAL', unicode(line[2]))
+                else:
+                    eur_ids = curr_mod.search(cr, uid, [('name','=','EUR')])
+                    if eur_ids and eur_ids[0]:
+                        eur_id = eur_ids[0]
+                    else:
+                        eur_id = None
+                    self._set_Dim(item, 'EXTXVAL', unicode(curr_mod.compute(cr, uid, line[6], eur_id, line[2])))
+            else:
+                self._set_Dim(item, 'EXTXVAL', u'0')
         if numlgn == 0:
             #no datas
             datas.set('action', 'nihil')
         return decl
 
-    def _get_dispatch_extended(self, cr, uid, ids, decl_datas, context=None):
+    def _get_dispatch_extended(self, cr, uid, ids, decl_datas, obj_company, context=None):
+        curr_mod = self.pool.get('res.currency')
+
         decl = ET.Element('Report')
         decl.set('code','EX29E')
         datas = ET.SubElement(decl, 'Data')
@@ -230,3 +287,8 @@ class xml_decl(osv.osv_memory):
             #no datas
             datas.set('action', 'nihil')
         return decl
+
+    def _set_Dim(self, item, prop, value):
+        dim = ET.SubElement(item, 'Dim')
+        dim.set('prop',prop)
+        dim.text = value

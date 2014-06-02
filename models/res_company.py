@@ -25,4 +25,5 @@ class res_company(osv.osv):
     _inherit = "res.company"
     _columns = {
         'region_id': fields.many2one('l10n_be_intrastat_declaration.regions', 'Intrastat region'),
+        'transport_mode_id': fields.many2one('l10n_be_intrastat_declaration.transport_mode', 'Default transport mode'),
     }
