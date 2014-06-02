@@ -1,4 +1,4 @@
-# -*- encoding: utf-8 -*-
+# -*- coding: utf-8 -*-
 ##############################################################################
 #
 #    OpenERP, Open Source Management Solution
@@ -18,29 +18,15 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 ##############################################################################
+from openerp.osv import fields, osv
 
-{
-    'name': 'Belgian Intrastat Declaration',
-    'version': '1.0',
-    'category': 'Reporting',
-    'description': """
-Generates Intrastat XML report for declaration
-    """,
-    'author': 'OpenERP SA',
-    'depends': ['report_intrastat', 'base_action_rule', 'sale_stock'],
-    'data': [
-        'data/report.intrastat.code.xml',
-        'data/transaction.codes.xml',
-        'data/transport.modes.xml',
-        'views/cust_invoice.xml',
-        'views/supp_invoice.xml',
-        'wizard/l10n_be_intrastat_declaration_xml_view.xml',
-    ],
-    'demo': [],
-    'test': [],
-    'installable': True,
-    'auto_install': False,
-    'images': [],
-    'css': [],
-}
+class intrastat_transport_mode(osv.osv):
+    _name = 'l10n_be_intrastat_declaration.transport_mode'
+    _columns = {
+        'code': fields.char('Code', required=True),
+        'name': fields.char('Description'),
+    }
 
+    _sql_constraints = [
+        ('l10n_be_intrastat_declaration_trmodecodeunique','UNIQUE (code)','Code must be unique.'),
+    ]

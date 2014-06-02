@@ -1,3 +1,4 @@
 import account_invoice
 import intrastat_transaction
+import intrastat_transport_mode
 import report_intrastat_code

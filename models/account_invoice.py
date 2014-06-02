@@ -26,4 +26,6 @@ class account_invoice(osv.osv):
     _columns = {
         'incoterm': fields.many2one('stock.incoterms', 'Incoterm', help="International Commercial Terms are a series of predefined commercial terms used in international transactions."),
         'intrastat_transaction_id': fields.many2one('l10n_be_intrastat_declaration.transaction', 'Transaction', help="Intrastat nature of transaction"),
+        'transport_mode_id': fields.many2one('l10n_be_intrastat_declaration.transport_mode', 'Transport mode'),
+
     }
