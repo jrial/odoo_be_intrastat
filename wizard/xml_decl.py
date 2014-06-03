@@ -20,6 +20,7 @@
 ##############################################################################
 import time
 import base64
+from datetime import date, timedelta
 import xml.etree.ElementTree as ET
 from openerp.osv import fields, osv
 from openerp.tools.translate import _
@@ -45,6 +46,22 @@ class xml_decl(osv.osv_memory):
             return base64.encodestring(context['file_save'].encode('utf8'))
         return ''
 
+    def _get_def_monthyear(self, cr, uid, context=None):
+        td = date.today()
+        if td.day<=20:
+            #we take the previous month
+            #Because you've until the 20th day of the month
+            #to give yous intrastat
+            td = date(td.year, td.month, 1)
+            td = td - timedelta(1)
+        return td.year, td.month
+
+    def _get_def_month(self, cr, uid, context=None):
+        return self._get_def_monthyear(cr, uid, context)[1]
+
+    def _get_def_year(self, cr, uid, context=None):
+        return self._get_def_monthyear(cr, uid, context)[0]
+
     _columns = {
         'name': fields.char('File Name', size=32),
         'month': fields.char('Month',size = 2,required = True),
@@ -69,6 +86,8 @@ class xml_decl(osv.osv_memory):
         'file_save': _get_xml_data,
         'name': 'intrastat.xml',
         'tax_code_id': _get_tax_code,
+        'month': _get_def_month,
+        'year': _get_def_year,
     }
 
     def create_xml(self, cr, uid, ids, context=None):
@@ -108,9 +127,9 @@ class xml_decl(osv.osv_memory):
         ET.SubElement(admin, 'To').text = "NBB"
         ET.SubElement(admin, 'Domain').text = "SXX"
         if decl_datas.arrivals == 1:
-            decl.append(self._get_arrivals_simple(cr, uid, ids, decl_datas, obj_company, context))
+            decl.append(self._get_arrivals(cr, uid, ids, decl_datas, obj_company, False, context))
         elif decl_datas.arrivals == 2:
-            decl.append(self._get_arrivals_extended(cr, uid, ids, decl_datas, obj_company, context))
+            decl.append(self._get_arrivals(cr, uid, ids, decl_datas, obj_company, True, context))
         if decl_datas.dispatches == 1:
             decl.append(self._get_dispatch(cr, uid, ids, decl_datas, obj_company, False, context))
         elif decl_datas.dispatches == 2:
@@ -135,30 +154,141 @@ class xml_decl(osv.osv_memory):
             'target': 'new',
         }
 
-    def _get_arrivals_simple(self, cr, uid, ids, decl_datas, obj_company, context=None):
+    def _get_arrivals(self, cr, uid, ids, decl_datas, obj_company, extendedmode=False, context=None):
         curr_mod = self.pool.get('res.currency')
+        trans_mod = self.pool.get('l10n_be_intrastat_declaration.transport_mode')
+        incoterm_mod = self.pool.get('stock.incoterms')
+        region_mod = self.pool.get('l10n_be_intrastat_declaration.regions')
 
         decl = ET.Element('Report')
-        decl.set('code','EX19S')
+        if not extendedmode:
+            decl.set('code','EX19S')
+        else:
+            decl.set('code','EX19E')
         datas = ET.SubElement(decl, 'Data')
-        datas.set('form', 'EXF19S')
+        if not extendedmode:
+            datas.set('form', 'EXF19S')
+        else:
+            datas.set('form', 'EXF19E')
         datas.set('close', 'true')
         numlgn = 0
+        sqlreq = """
+            select
+                intrastat.name,
+                upper(inv_country.code) as code,
+                sum(case when inv_line.price_unit is not null
+                        then inv_line.price_unit * inv_line.quantity
+                        else 0
+                    end) as value,
+                sum(
+                    case when uom.category_id != puom.category_id then (pt.weight_net * inv_line.quantity)
+                    else (pt.weight_net * inv_line.quantity * uom.factor) end
+                ) as weight,
+                sum(
+                    case when uom.category_id != puom.category_id then inv_line.quantity
+                    else (inv_line.quantity * uom.factor) end
+                ) as supply_units,
+                idtr.code,
+                inv.currency_id as currency_id,
+                res_company.region_id,
+                res_currency.name,
+                inv.type as type,
+                COALESCE(inv.incoterm, purchase_order.incoterm_id, res_company.incoterm_id) as incocode,
+                COALESCE(inv.transport_mode_id, res_company.transport_mode_id) as tpmode
+            from
+                account_invoice inv
+                left join account_invoice_line inv_line on inv_line.invoice_id=inv.id
+                left join (product_template pt
+                    left join product_product pp on (pp.product_tmpl_id = pt.id))
+                on (inv_line.product_id = pp.id)
+                left join product_uom uom on uom.id=inv_line.uos_id
+                left join product_uom puom on puom.id = pt.uom_id
+                left join report_intrastat_code intrastat on pt.intrastat_id = intrastat.id
+                left join (res_partner inv_address
+                    left join res_country inv_country on (inv_country.id = inv_address.country_id))
+                on (inv_address.id = inv.partner_id)
+                left join l10n_be_intrastat_declaration_transaction idtr
+                    on inv.intrastat_transaction_id = idtr.id
+                left join res_company on inv.company_id = res_company.id
+                left join purchase_order on inv.origin = purchase_order.name
+                left join res_currency on inv.currency_id=res_currency.id
+            where
+                inv.state in ('open','paid')
+                and inv_line.product_id is not null
+                and inv_country.intrastat=true
+                and not inv_country.code='BE'
+                and inv.type not in ('out_invoice','in_refund')
+                and to_char(inv.create_date, 'YYYY')='%s'
+                and to_char(inv.create_date, 'MM')='%s'
+                and inv.company_id=%s
+            group by intrastat.name,inv.type,pt.intrastat_id, inv_country.code, inv.currency_id,
+                     idtr.code, res_company.region_id, res_currency.name,
+                     inv.transport_mode_id, res_company.transport_mode_id, inv.transport_mode_id,
+                     purchase_order.incoterm_id, inv.incoterm, res_company.incoterm_id
+            """ % (decl_datas.year, decl_datas.month, obj_company.id)
 
-        if numlgn == 0:
-            #no datas
-            datas.set('action', 'nihil')
-        return decl
-
-    def _get_arrivals_extended(self, cr, uid, ids, decl_datas, obj_company, context=None):
-        curr_mod = self.pool.get('res.currency')
-
-        decl = ET.Element('Report')
-        decl.set('code','EX19E')
-        datas = ET.SubElement(decl, 'Data')
-        datas.set('form', 'EXF19E')
-        datas.set('close', 'true')
-        numlgn = 0
+        cr.execute(sqlreq)
+        lines = cr.fetchall()
+        for line in lines:
+            numlgn += 1
+            item = ET.SubElement(datas, 'Item')
+            self._set_Dim(item, 'EXSEQCODE', unicode(numlgn))
+            self._set_Dim(item, 'EXTRF', u'19')
+            self._set_Dim(item, 'EXCNT', line[1])
+            if line[5]:
+                self._set_Dim(item, 'EXTTA', unicode(line[5]))
+            else:
+                self._set_Dim(item, 'EXTTA', u'1')
+            if line[7]:
+                reg = region_mod.read(cr, uid, line[7])
+                if reg:
+                    self._set_Dim(item, 'EXREG', unicode(reg['code']))
+                else:
+                    raise osv.except_osv(_('Incorrect Data!'), _('Region %s not found') % line[7])
+            else:
+                raise osv.except_osv(_('Incorrect Data!'), _('Define at least region of company'))
+            if line[0]:
+                self._set_Dim(item, 'EXTGO', line[0])
+            else:
+                raise osv.except_osv(_('Incorrect Data!'), _('intrastat code not defined'))
+            if line[3]:
+                self._set_Dim(item, 'EXWEIGHT', unicode(line[3]))
+            else:
+                self._set_Dim(item, 'EXWEIGHT', u'0')
+            if line[4]:
+                self._set_Dim(item, 'EXUNITS', unicode(line[4]))
+            else:
+                self._set_Dim(item, 'EXUNITS', u'0')
+            if line[2]:
+                #Check currency
+                if line[8] == "EUR":
+                    self._set_Dim(item, 'EXTXVAL', unicode(line[2]))
+                else:
+                    eur_ids = curr_mod.search(cr, uid, [('name','=','EUR')])
+                    if eur_ids and eur_ids[0]:
+                        eur_id = eur_ids[0]
+                    else:
+                        eur_id = None
+                    self._set_Dim(item, 'EXTXVAL', unicode(curr_mod.compute(cr, uid, line[6], eur_id, line[2])))
+            else:
+                self._set_Dim(item, 'EXTXVAL', u'0')
+            if extendedmode:
+                if line[11]:
+                    reg = trans_mod.read(cr, uid, line[11])
+                    if reg:
+                        self._set_Dim(item, 'EXTPC', unicode(reg['code']))
+                    else:
+                        raise osv.except_osv(_('Incorrect Data!'), _('Intrastat transport mode %s not found') % line[11])
+                else:
+                    raise osv.except_osv(_('Incorrect Data!'), _('Define at least default transport of company'))
+                if line[10]:
+                    inco = incoterm_mod.read(cr, uid, line[10])
+                    if inco:
+                        self._set_Dim(item, 'EXDELTRM', unicode(inco['code']))
+                    else:
+                        raise osv.except_osv(_('Incorrect Data!'), _('Incoterm %s not found') % line[10])
+                else:
+                    raise osv.except_osv(_('Incorrect Data!'), _('Incoterm not defined'))
 
         if numlgn == 0:
             #no datas
@@ -204,7 +334,7 @@ class xml_decl(osv.osv_memory):
                 COALESCE(swh.region_id, res_company.region_id) as region,
                 res_currency.name,
                 inv.type as type,
-                COALESCE(inv.incoterm, sale_order.incoterm, res_company.incoterm) as incocode,
+                COALESCE(inv.incoterm, sale_order.incoterm, res_company.incoterm_id) as incocode,
                 COALESCE(inv.transport_mode_id, res_company.transport_mode_id) as tpmode
             from
                 account_invoice inv
@@ -228,6 +358,7 @@ class xml_decl(osv.osv_memory):
                 inv.state in ('open','paid')
                 and inv_line.product_id is not null
                 and inv_country.intrastat=true
+                and not inv_country.code='BE'
                 and inv.type in ('out_invoice','in_refund')
                 and to_char(inv.create_date, 'YYYY')='%s'
                 and to_char(inv.create_date, 'MM')='%s'
@@ -235,7 +366,7 @@ class xml_decl(osv.osv_memory):
             group by intrastat.name,inv.type,pt.intrastat_id, inv_country.code, inv.currency_id,
                      idtr.code, swh.region_id, res_company.region_id, res_currency.name,
                      inv.transport_mode_id, res_company.transport_mode_id, inv.transport_mode_id,
-                     sale_order.incoterm, inv.incoterm, res_company.incoterm
+                     sale_order.incoterm, inv.incoterm, res_company.incoterm_id
             """ % (decl_datas.year, decl_datas.month, obj_company.id)
 
         cr.execute(sqlreq)

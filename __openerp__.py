@@ -30,7 +30,7 @@ Generates Intrastat XML report for declaration
     'depends': ['report_intrastat', 'base_action_rule', 'sale_stock'],
     'data': [
         'data/regions.xml',
-        #'data/report.intrastat.code.xml',
+        'data/report.intrastat.code.xml',
         'data/transaction.codes.xml',
         'data/transport.modes.xml',
         'security/ir.model.access.csv',

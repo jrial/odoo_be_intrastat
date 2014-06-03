@@ -10,7 +10,7 @@
 				<xpath expr="//field[@name='company_registry']" position="after">
 							<field name="region_id" attrs="{'required': [('country_id', '=', %(base.be)d )]}"/>
               <field name="transport_mode_id"/>
-              <field name="incoterm"/>
+              <field name="incoterm_id"/>
 				</xpath>
 			</field>
 
