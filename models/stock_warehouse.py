@@ -1,4 +1,4 @@
-# -*- encoding: utf-8 -*-
+# -*- coding: utf-8 -*-
 ##############################################################################
 #
 #    OpenERP, Open Source Management Solution
@@ -18,6 +18,11 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 ##############################################################################
+from openerp.osv import fields, osv
 
-import models
-import wizard
+
+class stock_warehouse(osv.osv):
+    _inherit = "stock.warehouse"
+    _columns = {
+        'region_id': fields.many2one('l10n_be_intrastat_declaration.regions', 'Intratstat region'),
+    }

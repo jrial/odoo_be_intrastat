@@ -1,4 +1,4 @@
-# -*- encoding: utf-8 -*-
+# -*- coding: utf-8 -*-
 ##############################################################################
 #
 #    OpenERP, Open Source Management Solution
@@ -18,6 +18,15 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 ##############################################################################
+from openerp.osv import fields, osv
 
-import models
-import wizard
+class intrastat_transport_mode(osv.osv):
+    _name = 'l10n_be_intrastat_declaration.transport_mode'
+    _columns = {
+        'code': fields.char('Code', required=True),
+        'name': fields.char('Description'),
+    }
+
+    _sql_constraints = [
+        ('l10n_be_intrastat_declaration_trmodecodeunique','UNIQUE (code)','Code must be unique.'),
+    ]

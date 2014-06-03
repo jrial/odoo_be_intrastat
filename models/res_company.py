@@ -1,4 +1,4 @@
-# -*- encoding: utf-8 -*-
+# -*- coding: utf-8 -*-
 ##############################################################################
 #
 #    OpenERP, Open Source Management Solution
@@ -18,6 +18,13 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 ##############################################################################
+from openerp.osv import fields, osv
 
-import models
-import wizard
+
+class res_company(osv.osv):
+    _inherit = "res.company"
+    _columns = {
+        'region_id': fields.many2one('l10n_be_intrastat_declaration.regions', 'Intrastat region'),
+        'transport_mode_id': fields.many2one('l10n_be_intrastat_declaration.transport_mode', 'Default transport mode'),
+        'incoterm_id': fields.many2one('stock.incoterms', 'Default incoterm for intrastat', help="International Commercial Terms are a series of predefined commercial terms used in international transactions."),
+    }

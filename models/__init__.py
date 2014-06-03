@@ -1,1 +1,7 @@
+import account_invoice
+import intrastat_regions
+import intrastat_transaction
+import intrastat_transport_mode
 import report_intrastat_code
+import res_company
+import stock_warehouse

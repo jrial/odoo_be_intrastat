@@ -1,4 +1,4 @@
-# -*- encoding: utf-8 -*-
+# -*- coding: utf-8 -*-
 ##############################################################################
 #
 #    OpenERP, Open Source Management Solution
@@ -18,6 +18,14 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 ##############################################################################
+from openerp.osv import fields, osv
 
-import models
-import wizard
+
+class account_invoice(osv.osv):
+    _inherit = "account.invoice"
+    _columns = {
+        'incoterm': fields.many2one('stock.incoterms', 'Incoterm', help="International Commercial Terms are a series of predefined commercial terms used in international transactions."),
+        'intrastat_transaction_id': fields.many2one('l10n_be_intrastat_declaration.transaction', 'Transaction', help="Intrastat nature of transaction"),
+        'transport_mode_id': fields.many2one('l10n_be_intrastat_declaration.transport_mode', 'Transport mode'),
+
+    }

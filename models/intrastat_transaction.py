@@ -1,4 +1,4 @@
-# -*- encoding: utf-8 -*-
+# -*- coding: utf-8 -*-
 ##############################################################################
 #
 #    OpenERP, Open Source Management Solution
@@ -18,6 +18,16 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 ##############################################################################
+from openerp.osv import fields, osv
 
-import models
-import wizard
+class intrastat_transaction(osv.osv):
+    _name = 'l10n_be_intrastat_declaration.transaction'
+    _rec_name = 'code'
+    _columns = {
+        'code': fields.char('Code', required=True),
+        'description': fields.text('Description'),
+    }
+
+    _sql_constraints = [
+        ('l10n_be_intrastat_declaration_trcodeunique','UNIQUE (code)','Code must be unique.'),
+    ]

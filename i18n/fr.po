@@ -1,7 +1,7 @@
 # Translation of OpenERP Server.
 # This file contains the translation of the following modules:
 # * report_intrastat
-# 
+#
 msgid ""
 msgstr ""
 "Project-Id-Version: OpenERP Server 7.0\n"
@@ -32864,3 +32864,18 @@ msgstr "Baguettes et profilés, en caoutchouc alvéolaire non durci"
 #: model:report.intrastat.code,description:0
 msgid "Media, recorded, for reproducing sound or image, incl. matrices and masters for the production of discs (excl. for reproducing representations of instructions, data, sound, and image recorded in a machine-readable binary form, and capable of being manipulated or providing interactivity to a user, by means of an automatic data-processing machine, magnetic, optical and semiconductor media, and products of chapter 37)"
 msgstr "Supports, enregistrés, pour la reproduction du son ou de l'image, y.c. les matrices et moules galvaniques pour la fabrication des disques (sauf pour la reproduction de représentations d'instructions, de données, du son et de l'image, enregistrées sous une forme binaire lisible par machine, pouvant être manipulées ou offrant une interactivité à l'utilisateur au moyen d'une machine automatique de traitement de l'information et à l'excl. des supports magnétiques, optiques et à semi-conducteur ainsi que des produits du chapitre 37)"
+
+#. module: l10n_be_intrastat_declaration
+#: model:l10n_be_intrastat_declaration.regions,name:0
+msgid "Flemish region"
+msgstr "Région flamande"
+
+#. module: l10n_be_intrastat_declaration
+#: model:l10n_be_intrastat_declaration.regions,name:0
+msgid "Walloon region"
+msgstr "Région wallonne"
+
+#. module: l10n_be_intrastat_declaration
+#: model:l10n_be_intrastat_declaration.regions,name:0
+msgid "Brussels region"
+msgstr "Région buxelloise"
