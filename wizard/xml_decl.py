@@ -159,6 +159,8 @@ class xml_decl(osv.osv_memory):
         trans_mod = self.pool.get('l10n_be_intrastat_declaration.transport_mode')
         incoterm_mod = self.pool.get('stock.incoterms')
         region_mod = self.pool.get('l10n_be_intrastat_declaration.regions')
+        warehouse_mod = self.pool.get('stock.warehouse')
+        location_mod = self.pool.get('stock.location')
 
         decl = ET.Element('Report')
         if not extendedmode:
@@ -194,7 +196,8 @@ class xml_decl(osv.osv_memory):
                 res_currency.name,
                 inv.type as type,
                 COALESCE(inv.incoterm, purchase_order.incoterm_id, res_company.incoterm_id) as incocode,
-                COALESCE(inv.transport_mode_id, res_company.transport_mode_id) as tpmode
+                COALESCE(inv.transport_mode_id, res_company.transport_mode_id) as tpmode,
+                purchase_order.location_id
             from
                 account_invoice inv
                 left join account_invoice_line inv_line on inv_line.invoice_id=inv.id
@@ -224,7 +227,7 @@ class xml_decl(osv.osv_memory):
             group by intrastat.name,inv.type,pt.intrastat_id, inv_country.code, inv.currency_id,
                      idtr.code, res_company.region_id, res_currency.name,
                      inv.transport_mode_id, res_company.transport_mode_id, inv.transport_mode_id,
-                     purchase_order.incoterm_id, inv.incoterm, res_company.incoterm_id
+                     purchase_order.incoterm_id, inv.incoterm, res_company.incoterm_id, purchase_order.location_id
             """ % (decl_datas.year, decl_datas.month, obj_company.id)
 
         cr.execute(sqlreq)
@@ -240,11 +243,37 @@ class xml_decl(osv.osv_memory):
             else:
                 self._set_Dim(item, 'EXTTA', u'1')
             if line[7]:
-                reg = region_mod.read(cr, uid, line[7])
-                if reg:
-                    self._set_Dim(item, 'EXREG', unicode(reg['code']))
-                else:
-                    raise osv.except_osv(_('Incorrect Data!'), _('Region %s not found') % line[7])
+                #Check region by finding first the warehouse, then it's region, and finally if not, the company's region
+                location_id = line[12]
+                stopsearching = False
+                findedreg = False
+                while not stopsearching:
+                    wids = warehouse_mod.search(cr, uid, [('lot_stock_id','=',location_id)])
+                    if wids and wids[0]:
+                        stopsearching = True
+                        findedreg=True
+                        foundedreg = warehouse_mod.read(cr, uid, wids[0])['region_id'][0]
+                    else:
+                        loc = location_mod.read(cr, uid, location_id)
+                        if loc and loc['location_id']:
+                            location_id = loc['location_id']
+                        else:
+                            #no more parent
+                            stopsearching = True
+                if findedreg:
+                    findedreg = False
+                    if foundedreg:
+                        reg = region_mod.read(cr, uid, foundedreg)
+                        if reg:
+                            self._set_Dim(item, 'EXREG', unicode(reg['code']))
+                            findedreg = True
+                if not findedreg:
+                    reg = region_mod.read(cr, uid, line[7])
+                    if reg:
+                        self._set_Dim(item, 'EXREG', unicode(reg['code']))
+                    else:
+                        raise osv.except_osv(_('Incorrect Data!'), _('Region %s not found') % line[7])
+
             else:
                 raise osv.except_osv(_('Incorrect Data!'), _('Define at least region of company'))
             if line[0]:
